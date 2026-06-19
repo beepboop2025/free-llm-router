@@ -40,7 +40,7 @@ The three ports are kept behaviorally identical by hand — edit together.
 | **DragonScope** | Py (FastAPI) | `NlpEngine.summarize_async` does abstractive summaries via router; `/nlp/analyze` awaits it | LLM with extractive fallback |
 | **VitalChain** | TS (Next.js) | `src/lib/intel/llm.ts` text path uses the router with multi-provider failover; PDF path stays native Gemini/Claude | free-first |
 | **DragonScope UI** | TS (Vite SPA) | calls `/api/llm/chat` on its authed Express server, which runs the Node port (`server/lib/free-llm-router.mjs`). Keys server-side; `api.llmChat()` in the SPA | ✅ |
-| **LiquiFi** | TS (Vite SPA) | ❌ working tree is an EMPTY git repo — no source to integrate. Stale path: `/Users/mrinal/Documents/New project 4` | blocked |
+| **LiquiFi** | TS (Vite SPA) | ❌ empty working tree — integration pending | blocked |
 
 ## Security: never put keys in a browser bundle
 
