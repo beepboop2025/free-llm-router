@@ -18,10 +18,17 @@ PY_TARGETS=(
   "/Users/mrinal/social_scraper/free_llm_router"
   "/Users/mrinal/dev/DragonScope/backend/free_llm_router"
 )
+# NOTE: policy.py is the USER-OWNED per-app ordering hook — apps customize it
+# (e.g. OperatorOS has a health/quota-aware smart_order). NEVER overwrite an
+# existing one; only seed it for a fresh target. All other modules are vendored.
 for dst in "${PY_TARGETS[@]}"; do
   mkdir -p "$dst"
-  rm -f "$dst"/*.py
-  cp "$PY_SRC"/*.py "$dst"/
+  find "$dst" -maxdepth 1 -name '*.py' ! -name 'policy.py' -delete
+  for f in "$PY_SRC"/*.py; do
+    [ "$(basename "$f")" = policy.py ] && continue
+    cp "$f" "$dst"/
+  done
+  [ -f "$dst/policy.py" ] || cp "$PY_SRC/policy.py" "$dst/policy.py"  # seed only
   echo "py  -> $dst"
 done
 

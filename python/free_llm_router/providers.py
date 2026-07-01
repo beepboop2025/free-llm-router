@@ -25,7 +25,14 @@ Tier = str  # "fast" | "smart"
 
 @dataclass(frozen=True)
 class Provider:
-    """A single free LLM provider and its free-tier characteristics."""
+    """A single LLM provider and its free-tier characteristics.
+
+    Most entries are *perpetually free* (``free=True``, zero cost). A small number
+    of paid-but-cheap providers (e.g. Kimi/Moonshot) carry ``free=False`` and real
+    per-token rates. Paid providers are deliberately kept OUT of the default
+    failover chain (see ``router.chat_completion``) — they're only reached when a
+    caller explicitly prefers them, so normal traffic never spends money by accident.
+    """
 
     name: str
     base_url: str
@@ -36,6 +43,9 @@ class Provider:
     priority: int              # tie-breaker; lower = generally preferred
     referer: str = ""          # OpenRouter wants HTTP-Referer/X-Title for free tier
     extra_headers: Dict[str, str] = field(default_factory=dict)
+    free: bool = True          # False = paid; excluded from default failover
+    cost_in_per_1m: float = 0.0   # USD per 1M prompt tokens (0 for free tiers)
+    cost_out_per_1m: float = 0.0  # USD per 1M completion tokens
 
     @property
     def api_key(self) -> Optional[str]:
@@ -43,6 +53,14 @@ class Provider:
 
     def model_for(self, tier: Tier) -> Optional[str]:
         return self.models.get(tier)
+
+    def cost_usd(self, prompt_tokens: int, completion_tokens: int) -> float:
+        """Marginal cost of one call. Always 0.0 for free providers."""
+        return round(
+            prompt_tokens / 1_000_000 * self.cost_in_per_1m
+            + completion_tokens / 1_000_000 * self.cost_out_per_1m,
+            6,
+        )
 
 
 # ── The registry (perpetually-free tiers only — no trial-credit providers) ──────
@@ -102,6 +120,28 @@ REGISTRY: List[Provider] = [
         rpd=50,  # 1000/day if the account has ever topped up $10
         priority=50,  # widest model catalog, but tightest free request cap
         referer="https://github.com/cheahjs/free-llm-api-resources",
+    ),
+    # ── Paid, opt-in only ────────────────────────────────────────────────────
+    # Kimi (Moonshot AI) — Chinese-origin model. NOT free, but cheap, and the
+    # strongest free-or-cheap option for Chinese-language work (CN-source
+    # scraping, translation, China market/regulatory context). It is excluded
+    # from the default failover chain: the router only routes here when a caller
+    # passes lang="zh" / a china task_type / prefer_provider="kimi".
+    #
+    # Setup: create a key at platform.moonshot.ai (min $1 top-up) → MOONSHOT_API_KEY.
+    # Use the .cn base_url (api.moonshot.cn/v1) if billing/keys are on the China platform.
+    # Prices are current cache-MISS rates (Jun 2026); context caching cuts input ~80%.
+    Provider(
+        name="kimi",
+        base_url="https://api.moonshot.ai/v1",
+        api_key_env="MOONSHOT_API_KEY",
+        models={"fast": "kimi-k2.5", "smart": "kimi-k2.6"},
+        rpm=200,           # paid tier — generous; real cap depends on account level
+        rpd=None,
+        priority=100,      # last among any free peers; only used when preferred anyway
+        free=False,
+        cost_in_per_1m=0.95,   # kimi-k2.6 input
+        cost_out_per_1m=4.00,  # kimi-k2.6 output
     ),
 ]
 

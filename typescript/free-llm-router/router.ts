@@ -13,6 +13,7 @@ import {
   type Tier,
   apiKeyFor,
   availableProviders,
+  costUsd,
 } from "./providers";
 
 const TASK_TIER: Record<string, Tier> = {
@@ -24,7 +25,21 @@ const TASK_TIER: Record<string, Tier> = {
   drafting: "smart",
   summarization: "smart",
   briefing: "smart",
+  // China-intel vocabulary (Provenra / social_scraper / DragonScope)
+  translation: "smart",
+  china_intel: "smart",
+  zh_summarization: "smart",
+  zh_classification: "fast",
 };
+
+// Task types that prefer the Chinese-origin model (Kimi) when it's configured.
+const CHINA_TASKS = new Set([
+  "translation",
+  "china_intel",
+  "zh_summarization",
+  "zh_classification",
+]);
+const ZH_LANGS = new Set(["zh", "zh-cn", "zh-hans", "chinese"]);
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -188,10 +203,31 @@ export class FreeLLMRouter {
 
   async chatCompletion(
     messages: ChatMessage[],
-    opts: { tier?: Tier; taskType?: string; temperature?: number; maxTokens?: number } = {},
+    opts: {
+      tier?: Tier;
+      taskType?: string;
+      preferProvider?: string;
+      lang?: string;
+      temperature?: number;
+      maxTokens?: number;
+    } = {},
   ): Promise<ChatResult> {
     const tier: Tier = opts.tier ?? TASK_TIER[opts.taskType ?? ""] ?? "smart";
-    const ordered = this.orderFn(this.snapshot());
+
+    // Chinese-language work prefers Kimi unless the caller said otherwise.
+    let prefer = opts.preferProvider;
+    if (
+      prefer === undefined &&
+      (ZH_LANGS.has((opts.lang ?? "").toLowerCase()) || CHINA_TASKS.has(opts.taskType ?? ""))
+    ) {
+      prefer = "kimi";
+    }
+
+    // Free-by-default: a paid provider is eligible ONLY when explicitly preferred,
+    // and the preferred provider is tried first.
+    const ordered = this.orderFn(this.snapshot())
+      .filter((p) => p.free !== false || p.name === prefer)
+      .sort((a, b) => (a.name === prefer ? -1 : 0) - (b.name === prefer ? -1 : 0));
     const attempted: string[] = [];
     let lastErr: unknown = null;
 
@@ -268,7 +304,7 @@ export class FreeLLMRouter {
         provider: provider.name,
         tokens: { prompt, completion, total: u.total_tokens ?? prompt + completion },
         latencyMs,
-        costUsd: 0,
+        costUsd: costUsd(provider, prompt, completion),
       };
     } finally {
       clearTimeout(t);

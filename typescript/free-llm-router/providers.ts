@@ -21,6 +21,12 @@ export interface Provider {
   rpd: number | null;
   priority: number;
   referer?: string;
+  /** False = paid; excluded from the default failover chain (opt-in only). */
+  free?: boolean;
+  /** USD per 1M prompt tokens (0 / omitted for free tiers). */
+  costInPer1m?: number;
+  /** USD per 1M completion tokens. */
+  costOutPer1m?: number;
 }
 
 export const REGISTRY: Provider[] = [
@@ -74,6 +80,24 @@ export const REGISTRY: Provider[] = [
     priority: 50,
     referer: "https://github.com/cheahjs/free-llm-api-resources",
   },
+  // ── Paid, opt-in only ──────────────────────────────────────────────────────
+  // Kimi (Moonshot AI) — Chinese-origin model. NOT free, but cheap and the best
+  // option for Chinese-language work. Excluded from default failover; reached
+  // only when a caller prefers it (lang "zh" / china task / preferProvider).
+  // Key: platform.moonshot.ai (min $1) → MOONSHOT_API_KEY. Use api.moonshot.cn
+  // for China-platform billing. Prices are Jun 2026 cache-miss rates.
+  {
+    name: "kimi",
+    baseUrl: "https://api.moonshot.ai/v1",
+    apiKeyEnv: "MOONSHOT_API_KEY",
+    models: { fast: "kimi-k2.5", smart: "kimi-k2.6" },
+    rpm: 200,
+    rpd: null,
+    priority: 100,
+    free: false,
+    costInPer1m: 0.95,
+    costOutPer1m: 4.0,
+  },
 ];
 
 export function apiKeyFor(p: Provider): string | undefined {
@@ -82,4 +106,11 @@ export function apiKeyFor(p: Provider): string | undefined {
 
 export function availableProviders(): Provider[] {
   return REGISTRY.filter((p) => apiKeyFor(p));
+}
+
+/** Marginal USD cost of a call; 0 for free providers. */
+export function costUsd(p: Provider, promptTokens: number, completionTokens: number): number {
+  const cin = ((p.costInPer1m ?? 0) * promptTokens) / 1_000_000;
+  const cout = ((p.costOutPer1m ?? 0) * completionTokens) / 1_000_000;
+  return Math.round((cin + cout) * 1e6) / 1e6;
 }

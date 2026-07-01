@@ -43,7 +43,16 @@ TASK_TIER: Dict[str, Tier] = {
     "drafting": "smart",
     "summarization": "smart",
     "briefing": "smart",
+    # China-intel vocabulary (social_scraper / palimpsest / drug-price-observatory)
+    "translation": "smart",
+    "china_intel": "smart",
+    "zh_summarization": "smart",
+    "zh_classification": "fast",
 }
+
+# Task types that should prefer the Chinese-origin model when it's configured.
+# A caller can always override with prefer_provider=..., or force it with lang="zh".
+_CHINA_TASKS = {"translation", "china_intel", "zh_summarization", "zh_classification"}
 
 
 class AllProvidersFailed(RuntimeError):
@@ -122,6 +131,21 @@ class FreeLLMRouter:
             )
         return stats
 
+    # ── eligibility filter ───────────────────────────────────────────────────
+    def _eligible_order(
+        self, ordered: List[Provider], prefer_provider: Optional[str]
+    ) -> List[Provider]:
+        """Apply the free-by-default rule and an optional provider preference.
+
+        Free providers are always eligible. A paid provider is eligible ONLY when
+        it is explicitly preferred — that's what keeps normal failover from ever
+        spending money. The preferred provider, if present, is tried first.
+        """
+        eligible = [p for p in ordered if p.free or p.name == prefer_provider]
+        if prefer_provider:
+            eligible.sort(key=lambda p: 0 if p.name == prefer_provider else 1)
+        return eligible
+
     # ── main entry point ─────────────────────────────────────────────────────
     async def chat_completion(
         self,
@@ -129,12 +153,33 @@ class FreeLLMRouter:
         *,
         tier: Optional[Tier] = None,
         task_type: Optional[str] = None,
+        prefer_provider: Optional[str] = None,
+        lang: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 2048,
     ) -> Dict[str, Any]:
+        """Run a chat completion with failover.
+
+        Provider selection:
+          * By default only *free* providers are eligible, ordered by ``order_fn``.
+          * ``prefer_provider="kimi"`` (or any name) moves that provider to the
+            front AND makes it eligible even if it's paid.
+          * ``lang="zh"`` or a China-flavoured ``task_type`` (translation,
+            china_intel, zh_*) implies ``prefer_provider="kimi"`` — route Chinese
+            work to the Chinese-origin model when MOONSHOT_API_KEY is set.
+          * If the preferred provider is unavailable (no key / rate-limited /
+            circuit open), the call still falls back to the free chain.
+        """
         resolved_tier: Tier = tier or TASK_TIER.get(task_type or "", "smart")
 
-        ordered = self._order_fn(await self._snapshot())
+        # Chinese-language work prefers Kimi unless the caller said otherwise.
+        if prefer_provider is None and (
+            (lang or "").lower() in {"zh", "zh-cn", "zh-hans", "chinese"}
+            or (task_type or "") in _CHINA_TASKS
+        ):
+            prefer_provider = "kimi"
+
+        ordered = self._eligible_order(self._order_fn(await self._snapshot()), prefer_provider)
         attempted: List[str] = []
         last_error: Optional[Exception] = None
 
@@ -225,7 +270,8 @@ class FreeLLMRouter:
             "provider": provider.name,
             "tokens": {"prompt": prompt_t, "completion": completion_t, "total": total_t},
             "latency_ms": round(latency_ms, 2),
-            "cost_usd": 0.0,  # free tier — kept for drop-in contract compatibility
+            # 0.0 for free providers; real per-token cost for paid ones (e.g. kimi).
+            "cost_usd": provider.cost_usd(prompt_t, completion_t),
         }
 
     # ── convenience helper used by classification-style callers ──────────────
