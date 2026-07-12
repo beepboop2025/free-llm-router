@@ -31,7 +31,7 @@ export const REGISTRY = [
     name: "google_ai_studio",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     apiKeyEnv: "GOOGLE_AI_STUDIO_API_KEY",
-    models: { fast: "gemini-2.0-flash-lite", smart: "gemini-2.0-flash" },
+    models: { fast: "gemini-flash-lite-latest", smart: "gemini-flash-latest" },
     rpm: 15,
     rpd: 1_500,
     priority: 30,

@@ -93,7 +93,9 @@ REGISTRY: List[Provider] = [
         # Google exposes an OpenAI-compatible shim under /v1beta/openai
         base_url="https://generativelanguage.googleapis.com/v1beta/openai",
         api_key_env="GOOGLE_AI_STUDIO_API_KEY",
-        models={"fast": "gemini-2.0-flash-lite", "smart": "gemini-2.0-flash"},
+        # 2.x models were retired for new users mid-2026; the -latest aliases
+        # track whatever flash generation Google currently serves free.
+        models={"fast": "gemini-flash-lite-latest", "smart": "gemini-flash-latest"},
         rpm=15,
         rpd=1_500,
         priority=30,  # generous token quota, strong quality

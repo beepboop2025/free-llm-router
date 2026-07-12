@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: free-llm-router
+Version: 0.1.0
+Summary: Failover router across perpetually-free, OpenAI-compatible LLM providers
+Requires-Python: >=3.10
+Requires-Dist: httpx>=0.27
