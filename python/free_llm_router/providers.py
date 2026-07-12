@@ -146,6 +146,42 @@ REGISTRY: List[Provider] = [
 ]
 
 
+def _with_env_overrides(p: Provider) -> Provider:
+    """Apply per-provider env overrides, returning a new Provider.
+
+    FREE_LLM_MODEL_<PROVIDER>_<TIER>  swap a tier's model id. The main use is
+        pointing a provider at a PAID model once the account holds credit
+        (e.g. FREE_LLM_MODEL_OPENROUTER_FAST=meta-llama/llama-3.1-8b-instruct
+        escapes the hard-throttled ":free" pool). Cost accounting still reports
+        0 for free=True providers — overriding to a paid model trades accurate
+        cost logs for availability, which is the operator's call to make.
+    FREE_LLM_RPD_<PROVIDER> / FREE_LLM_RPM_<PROVIDER>  lift the documented
+        free-tier caps when the account's real limits differ (OpenRouter grants
+        1000/day once $10 has ever been topped up, vs 50/day baseline).
+    """
+    from dataclasses import replace
+
+    key = p.name.upper()
+    models = dict(p.models)
+    for tier in list(models):
+        override = os.environ.get(f"FREE_LLM_MODEL_{key}_{tier.upper()}")
+        if override:
+            models[tier] = override
+    changes: dict = {}
+    if models != p.models:
+        changes["models"] = models
+    rpd = os.environ.get(f"FREE_LLM_RPD_{key}")
+    if rpd and rpd.isdigit():
+        changes["rpd"] = int(rpd)
+    rpm = os.environ.get(f"FREE_LLM_RPM_{key}")
+    if rpm and rpm.isdigit():
+        changes["rpm"] = int(rpm)
+    return replace(p, **changes) if changes else p
+
+
+REGISTRY = [_with_env_overrides(p) for p in REGISTRY]
+
+
 def available_providers() -> List[Provider]:
     """Registry entries that actually have an API key set in the environment."""
     return [p for p in REGISTRY if p.api_key]
