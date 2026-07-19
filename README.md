@@ -10,10 +10,10 @@ Providers (free tiers only): **Groq → Cerebras → Google AI Studio → Mistra
 
 ## Why twins, not one package
 
-The consuming apps span two languages and separate repos, so there's no single
-runtime to share. The two packages are kept behaviorally identical by hand —
-edit both `python/free_llm_router/` and `vitalchain/src/lib/free-llm-router/`
-together.
+Consuming apps span multiple languages and separate repos, so there is no
+single runtime to share. The ports are kept behaviorally identical by hand.
+Edit `python/free_llm_router/`, `typescript/free-llm-router/`, and
+`node/free-llm-router.mjs` together.
 
 ## Layout
 
@@ -26,29 +26,16 @@ python/free_llm_router/      canonical Python package
   policy.py      smart_order() — YOUR ordering policy hook (see TODO)
 typescript/free-llm-router/  canonical browser/Next TS twin (server-only)
 node/free-llm-router.mjs     Node ESM port (for plain-JS Express servers)
-sync.sh          vendors all three ports into each consuming app
 ```
 
 The three ports are kept behaviorally identical by hand — edit together.
 
-## How it's wired into each app
-
-| App | Language | Integration | Direction |
-|-----|----------|-------------|-----------|
-| **OperatorOS** | Py (FastAPI) | `OpenRouterClient.chat_completion` routes cheap tasks (classification/factual/bulk) free-first; advisory/drafting paid-first with free fallback | drop-in, all services benefit |
-| **social_scraper** | Py (Celery) | LLM sentiment tier added above FinBERT→VADER in `processors/sentiment.py` | LLM top tier, rule-based fallback |
-| **DragonScope** | Py (FastAPI) | `NlpEngine.summarize_async` does abstractive summaries via router; `/nlp/analyze` awaits it | LLM with extractive fallback |
-| **VitalChain** | TS (Next.js) | `src/lib/intel/llm.ts` text path uses the router with multi-provider failover; PDF path stays native Gemini/Claude | free-first |
-| **DragonScope UI** | TS (Vite SPA) | calls `/api/llm/chat` on its authed Express server, which runs the Node port (`server/lib/free-llm-router.mjs`). Keys server-side; `api.llmChat()` in the SPA | ✅ |
-| **LiquiFi** | TS (Vite SPA) | ❌ empty working tree — integration pending | blocked |
-
 ## Security: never put keys in a browser bundle
 
-Vite SPAs (LiquiFi, DragonScope UI) are 100% client-side. Any API key bundled
-there is visible in DevTools and will be scraped — getting the free tier banned,
-which is exactly the abuse the upstream resource list warns against. The router
-is **server-only** in every app. SPAs must call a server (DragonScope's Python
-backend, or a serverless function for LiquiFi).
+Browser SPAs are 100% client-side. Any API key bundled there is visible in
+DevTools and will be scraped, getting the free tier banned, which is exactly
+the abuse the upstream resource list warns against. The router is
+**server-only** in every app. SPAs must call a server that runs the router.
 
 ## Configuration
 
@@ -58,13 +45,7 @@ Set any subset of these env vars; the router only uses providers whose key exist
 FREE_LLM_ENABLED=true
 GROQ_API_KEY=
 CEREBRAS_API_KEY=
-GOOGLE_AI_STUDIO_API_KEY=   # VitalChain reuses GEMINI_API_KEY instead
+GOOGLE_AI_STUDIO_API_KEY=
 MISTRAL_API_KEY=
 OPENROUTER_API_KEY=
-```
-
-## After editing the Python package
-
-```
-bash sync.sh   # re-vendor into operatoros / social_scraper / DragonScope backends
 ```
