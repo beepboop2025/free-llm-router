@@ -1,5 +1,8 @@
 # free-llm-router
 
+![tests](https://github.com/beepboop2025/free-llm-router/actions/workflows/tests.yml/badge.svg)
+![coverage](https://img.shields.io/badge/coverage-99%25-brightgreen)
+
 One failover router across **perpetually-free, OpenAI-compatible** LLM providers,
 shipped as **three sibling ports** (Python, browser/Next TypeScript, Node ESM)
 sharing the same provider registry, tier model, token-bucket rate limiting,
