@@ -1,5 +1,5 @@
 """
-Registry of perpetually-free, OpenAI-compatible LLM providers.
+Registry of free-tier, OpenAI-compatible model providers.
 
 Every provider here exposes a ``POST {base_url}/chat/completions`` endpoint that
 accepts the OpenAI request schema. That uniformity is what lets a single client
@@ -45,7 +45,7 @@ class Provider:
         return self.models.get(tier)
 
 
-# ── The registry (perpetually-free tiers only — no trial-credit providers) ──────
+# ── Free-tier registry (no trial-credit-only providers) ────────────────────────
 #
 # Limits are the documented free-tier numbers at time of writing; they drift, so
 # treat them as hints for the rate limiter rather than guarantees. Sources:
