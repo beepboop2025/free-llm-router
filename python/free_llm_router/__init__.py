@@ -1,4 +1,4 @@
-"""free-llm-router: failover across perpetually-free, OpenAI-compatible LLM APIs."""
+"""Failover across configured free-tier, OpenAI-compatible model APIs."""
 
 from .health import CircuitBreaker, State
 from .providers import Provider, REGISTRY, available_providers

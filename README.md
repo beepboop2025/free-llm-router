@@ -1,12 +1,13 @@
 # free-llm-router
 
-One failover router across **perpetually-free, OpenAI-compatible** LLM providers,
+One failover router across **free-tier, OpenAI-compatible** model providers,
 shipped as **three sibling ports** (Python, browser/Next TypeScript, Node ESM)
 sharing the same provider registry, tier model, token-bucket rate limiting,
 circuit breaker, and failover — one per target runtime.
 
-Providers (free tiers only): **Groq → Cerebras → Google AI Studio → Mistral → OpenRouter**
-(static priority order; override with a custom ordering policy).
+Default provider order: **Groq → Cerebras → Google AI Studio → Mistral → OpenRouter**.
+Provider availability, quotas, and pricing can change; confirm current terms before
+depending on a free tier. Override the order with a custom policy when needed.
 
 ## Why twins, not one package
 
@@ -30,12 +31,13 @@ node/free-llm-router.mjs     Node ESM port (for plain-JS Express servers)
 
 The three ports are kept behaviorally identical by hand — edit together.
 
-## Security: never put keys in a browser bundle
+## Security: keep keys out of browser bundles
 
 Browser SPAs are 100% client-side. Any API key bundled there is visible in
 DevTools and will be scraped, getting the free tier banned, which is exactly
-the abuse the upstream resource list warns against. The router is
-**server-only** in every app. SPAs must call a server that runs the router.
+the abuse the upstream resource list warns against. These implementations are
+intended for server-side use. A browser application should call a server that
+runs the router instead of embedding provider credentials.
 
 ## Configuration
 
